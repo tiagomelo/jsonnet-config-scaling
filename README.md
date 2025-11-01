@@ -2,7 +2,7 @@
 
 This repository demonstrates how to use [Jsonnet](https://jsonnet.org) to **scale Kubernetes configuration across multiple environments** in a maintainable, DRY, and extensible way.
 
-Instead of writing and maintaining separate YAML files for `dev`, `staging`, and `prod`, we use **modular Jsonnet templates** with mixins and per-environment overrides — and validate the result using Kubernetes schemas.
+Instead of writing and maintaining separate YAML files for `dev`, `staging`, and `prod`, we use **modular Jsonnet templates** with mixins and per-environment overrides — and validate the generated YAML against Kubernetes schemas.
 
 ---
 
@@ -21,7 +21,7 @@ Jsonnet is a **data templating language** that extends JSON with:
 - Mixins and reusable templates  
 - Array comprehensions (e.g. for multiple environments)
 
-Perfect for generating lots of similar config resources with minimal duplication.
+Perfect for generating lots of similar Kubernetes resources with minimal duplication and maximum clarity.
 
 ---
 
@@ -38,7 +38,7 @@ jsonnet-config-scaling/
 │       ├── dev.jsonnet
 │       ├── staging.jsonnet
 │       ├── prod.jsonnet
-│       └── all.jsonnet          # Generates for all envs with loop
+│       └── all.jsonnet          # Generates all envs via loop
 ├── output/                      # Generated manifests (ignored in Git)
 ├── Makefile
 ├── .gitignore
@@ -53,9 +53,10 @@ jsonnet-config-scaling/
 ### 1. Install prerequisites
 
 ```bash
-brew install jsonnet kubeconform
+brew install jsonnet yq kubeconform
 # or
 sudo apt install jsonnet
+go install github.com/mikefarah/yq/v4@latest
 go install github.com/yannh/kubeconform/cmd/kubeconform@latest
 ````
 
@@ -65,24 +66,25 @@ go install github.com/yannh/kubeconform/cmd/kubeconform@latest
 make build
 ```
 
-Outputs Kubernetes Deployment JSON under `output/`:
+Outputs Kubernetes Deployment YAML under `output/`:
 
 ```bash
-output/dev.json
-output/staging.json
-output/prod.json
+output/dev.yaml
+output/staging.yaml
+output/prod.yaml
 ```
 
 ### 3. Validate manifests
 
-Uses [`kubeconform`](https://github.com/yannh/kubeconform) to check against the official Kubernetes schema:
+Uses [`kubeconform`](https://github.com/yannh/kubeconform) to check schemas locally:
 
 ```bash
 make validate
 ```
 
-- No cluster required — validation is done locally
-- Ensures everything is production-safe
+- No cluster required
+- Validates against official Kubernetes OpenAPI spec
+- CI-friendly
 
 ---
 
@@ -109,9 +111,9 @@ base.deployment(
 
 ---
 
-## Bonus: generate all envs in one shot
+## Bonus: generate all envs in one YAML file
 
-`all.jsonnet` uses a `for` loop + conditional logic to generate multiple environments at once:
+`all.jsonnet` uses a loop + conditional logic to generate deployments for all environments:
 
 ```jsonnet
 local resourceMap = {
@@ -131,15 +133,32 @@ local resourceMap = {
 ]
 ```
 
+And the Makefile supports converting this to a single `all.yaml`:
+
+```bash
+make build-all-to-single-file
+```
+
+Which outputs:
+
+```bash
+output/all.yaml
+```
+
+A valid multi-document YAML that works with:
+
+```bash
+kubectl apply -f output/all.yaml
+```
+
 ---
 
 ## Makefile commands
 
-| Command         | Description                                |
-| --------------- | ------------------------------------------ |
-| `make build`    | Generate manifests under `output/`         |
-| `make validate` | Validate manifests against K8s schema      |
-| `make fmt`      | Format all `.jsonnet` / `.libsonnet` files |
-| `make clean`    | Remove `output/`                           |
-
-
+| Command                         | Description                                    |
+| ------------------------------- | ---------------------------------------------- |
+| `make build`                    | Generate YAML files under `output/`            |
+| `make build-all-to-single-file` | Generate all manifests into a single YAML file |
+| `make validate`                 | Validate manifests against Kubernetes schema   |
+| `make fmt`                      | Format all `.jsonnet` / `.libsonnet` files     |
+| `make clean`                    | Remove `output/`                               |
